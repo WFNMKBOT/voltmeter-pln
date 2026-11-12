@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VoltMeter — PLN Live Utility</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            lcd: ['"Chakra Petch"', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      background-color: #06090e;
+    }
+    input, select {
+      user-select: text;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .lcd-screen {
+      background: linear-gradient(160deg, #111912 0%, #090e0b 100%);
+      border: 1.5px solid rgba(163, 230, 53, 0.35);
+      box-shadow: inset 0 2px 14px rgba(0, 0, 0, 0.85), 0 0 25px rgba(163, 230, 53, 0.08);
+    }
+    .lcd-screen-alarm {
+      background: linear-gradient(160deg, #241013 0%, #12080a 100%);
+      border: 1.5px solid rgba(244, 63, 94, 0.55);
+      box-shadow: inset 0 2px 14px rgba(0, 0, 0, 0.85), 0 0 25px rgba(244, 63, 94, 0.16);
+    }
+    .hw-card {
+      background-color: #0d111a;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-left: 3px solid #a3e635;
+    }
+    .hw-card-violet {
+      background-color: #0d111a;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-left: 3px solid #818cf8;
+    }
+    .tactile-btn {
+      border-bottom: 3px solid rgba(0, 0, 0, 0.45);
+      transition: transform 0.08s ease, filter 0.15s ease;
+    }
+    .tactile-btn:active {
+      transform: translateY(2px);
+      border-bottom-width: 1px;
+    }
+    select {
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      background: #182030;
+      height: 8px;
+      border-radius: 4px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      background: #a3e635;
+      border: 2px solid #06090e;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen pb-28 font-sans antialiased selection:bg-lime-400/30 selection:text-lime-200">
+
+  <!-- Top Header -->
+  <header class="bg-[#080b12] border-b border-white/[0.06] pt-4 pb-3 px-4 sticky top-0 z-20">
+    <div class="max-w-md mx-auto space-y-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-lime-400 text-slate-950 flex items-center justify-center font-lcd font-bold text-base shadow-[0_0_15px_rgba(163,230,53,0.4)]">
+            ⚡
+          </div>
+          <div>
+            <h1 class="font-lcd font-bold text-base tracking-wide text-white leading-none">VOLTMETER</h1>
+            <p id="tariffInfoSub" class="font-mono text-[10px] text-slate-400 mt-1">R-1/TR 1.300 VA • Rp 1.444,7/kWh</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <!-- Tombol Cek Update -->
+          <button type="button" id="updateHeaderBtn" onclick="openUpdateModal()" class="hidden px-2.5 py-1.5 rounded-lg bg-lime-400/15 border border-lime-400/40 font-mono text-[10px] font-bold text-lime-300 animate-pulse active:scale-95 transition">
+            UPDATE
+          </button>
+          <button type="button" onclick="openInfoModal()" class="px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/10 font-mono text-[10px] text-slate-300 hover:text-lime-300 active:scale-95 transition">
+            INFO
+          </button>
+        </div>
+      </div>
+
+      <div id="tariffStrip" class="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5"></div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-md mx-auto px-4 pt-4 space-y-4">
+
+    <!-- ==================== VIEW 1: LIVE KWH METER ==================== -->
+    <section id="viewLive" class="space-y-4">
+      <div id="liveLcdBox" class="lcd-screen rounded-2xl p-4 relative overflow-hidden transition-colors duration-300">
+        <div class="flex items-center justify-between text-[10px] font-mono mb-2">
+          <span id="liveStatusIndicator" class="flex items-center gap-1.5 text-lime-400 font-bold">
+            <span id="livePulseDot" class="w-2 h-2 rounded-full bg-lime-400 animate-ping"></span>
+            <span id="liveStatusText">METER AKTIF BERJALAN</span>
+          </span>
+          <button type="button" onclick="openCalibrateBox()" class="px-2.5 py-1 rounded bg-white/10 hover:bg-white/15 border border-white/15 text-white font-bold active:scale-95 transition">
+            KALIBRASI KWH
+          </button>
+        </div>
+
+        <div class="my-1.5 flex items-baseline justify-between gap-2">
+          <div class="flex items-baseline gap-1.5">
+            <span id="liveKwhDigits" class="font-lcd font-bold text-5xl tracking-wider text-lime-300 drop-shadow-[0_0_12px_rgba(163,230,53,0.4)]">45.5000</span>
+            <span class="font-mono text-sm font-bold text-lime-400">kWh</span>
+          </div>
+        </div>
+
+        <div id="calibrateBox" class="hidden mt-3 pt-3 border-t border-white/15 flex items-center gap-2">
+          <input type="number" id="calibrateInput" step="0.01" placeholder="Angka kWh di meteran fisik..." class="flex-1 bg-[#06090e] border border-lime-400/50 rounded-lg py-2 px-3 font-mono text-xs text-white outline-none">
+          <button type="button" onclick="applyCalibration()" class="bg-lime-400 text-slate-950 font-mono text-xs font-bold px-3 py-2 rounded-lg">SET</button>
+          <button type="button" onclick="closeCalibrateBox()" class="bg-white/10 text-slate-300 font-mono text-xs px-2.5 py-2 rounded-lg">✕</button>
+        </div>
+
+        <div class="mt-3 pt-3 border-t border-white/10 grid grid-cols-3 gap-2 font-mono">
+          <div>
+            <p class="text-[9px] text-slate-400">BEBAN AKTIF</p>
+            <p id="liveActiveWatt" class="text-xs font-bold text-white mt-0.5">0 W</p>
+          </div>
+          <div>
+            <p class="text-[9px] text-slate-400">BIAYA / JAM</p>
+            <p id="liveCostPerHour" class="text-xs font-bold text-indigo-300 mt-0.5">Rp 0</p>
+          </div>
+          <div class="text-right">
+            <p class="text-[9px] text-slate-400">HABIS DALAM</p>
+            <p id="liveCountdownText" class="text-xs font-bold text-lime-300 mt-0.5">STANDBY</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" onclick="toggleAllLiveDevices(true)" class="tactile-btn py-2.5 px-3 rounded-xl bg-[#121927] hover:bg-[#182235] border border-white/[0.07] font-mono text-[11px] font-bold text-lime-300 flex items-center justify-center gap-1.5">
+          <span>●</span> NYALAKAN SEMUA
+        </button>
+        <button type="button" onclick="toggleAllLiveDevices(false)" class="tactile-btn py-2.5 px-3 rounded-xl bg-[#121927] hover:bg-[#182235] border border-white/[0.07] font-mono text-[11px] font-bold text-slate-300 flex items-center justify-center gap-1.5">
+          <span>○</span> MATIKAN SEMUA
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between px-1">
+          <span class="font-mono text-[10px] uppercase tracking-widest text-slate-400">Sakelar Alat Menyala (<span id="liveOnCount">0</span>/<span id="liveTotalCount">0</span>)</span>
+          <button type="button" onclick="switchView('Devices')" class="font-mono text-[10px] text-lime-400 hover:underline">+ TAMBAH ALAT</button>
+        </div>
+        <div id="liveSwitchList" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 2: BELI TOKEN PLN ==================== -->
+    <section id="viewToken" class="hidden space-y-4">
+      <div class="lcd-screen rounded-2xl p-4 relative overflow-hidden">
+        <div class="flex items-center justify-between text-[10px] font-mono text-lime-400/80 mb-2">
+          <span class="flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-lime-400 animate-pulse"></span>
+            KALKULATOR TOKEN PREPAID
+          </span>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="topUpToLiveMeter()" class="px-2 py-0.5 rounded bg-indigo-500/25 border border-indigo-400/40 text-indigo-200 hover:bg-indigo-500/35 active:scale-95 transition">
+              + ISI KE LIVE
+            </button>
+            <button type="button" onclick="copyTokenResult()" class="px-2 py-0.5 rounded bg-lime-400/15 border border-lime-400/30 text-lime-300 hover:bg-lime-400/25 active:scale-95 transition">
+              SALIN
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-baseline justify-between gap-2 my-1">
+          <div class="flex items-baseline gap-2">
+            <span id="resultKwh" class="font-lcd font-bold text-5xl tracking-wider text-lime-300 drop-shadow-[0_0_10px_rgba(163,230,53,0.35)]">67.14</span>
+            <span class="font-mono text-sm font-bold text-lime-400">kWh</span>
+          </div>
+          <div class="text-right font-mono">
+            <p class="text-[10px] text-slate-400">BERSIH LISTRIK</p>
+            <p id="resultNetRupiah" class="text-xs font-bold text-white">Rp 97.000</p>
+          </div>
+        </div>
+
+        <div class="mt-3 pt-2.5 border-t border-lime-400/15 flex items-center justify-between font-mono text-[11px]">
+          <span class="text-slate-400">Potongan PPJ (<span id="ppjInlineText" class="text-lime-300">3%</span>):</span>
+          <span id="resultPpjRupiah" class="text-rose-400 font-semibold">- Rp 3.000</span>
+        </div>
+      </div>
+
+      <div class="hw-card rounded-xl p-4 space-y-4">
+        <div>
+          <label for="tokenAmount" class="block font-mono text-[10px] uppercase tracking-widest text-slate-400 mb-2">Input Nominal Pembelian (Rp)</label>
+          <div class="relative flex items-center">
+            <span class="absolute left-3.5 font-mono text-sm font-bold text-lime-400">Rp</span>
+            <input 
+              type="number" 
+              id="tokenAmount" 
+              value="100000" 
+              min="5000" 
+              step="5000"
+              oninput="calculateToken()"
+              class="w-full bg-[#06090e] border border-white/10 focus:border-lime-400 rounded-lg py-3 pl-10 pr-4 font-mono text-lg font-bold text-white outline-none transition"
+            >
+          </div>
+
+          <div class="grid grid-cols-4 gap-2 pt-3">
+            <button type="button" onclick="setTokenNominal(20000)" class="tactile-btn py-2 rounded-lg bg-[#151c2c] hover:bg-[#1c253a] font-mono text-xs font-bold text-slate-200">20K</button>
+            <button type="button" onclick="setTokenNominal(50000)" class="tactile-btn py-2 rounded-lg bg-[#151c2c] hover:bg-[#1c253a] font-mono text-xs font-bold text-slate-200">50K</button>
+            <button type="button" onclick="setTokenNominal(100000)" class="tactile-btn py-2 rounded-lg bg-[#151c2c] hover:bg-[#1c253a] font-mono text-xs font-bold text-lime-300">100K</button>
+            <button type="button" onclick="setTokenNominal(200000)" class="tactile-btn py-2 rounded-lg bg-[#151c2c] hover:bg-[#1c253a] font-mono text-xs font-bold text-slate-200">200K</button>
+          </div>
+        </div>
+
+        <div class="pt-1">
+          <div class="flex justify-between items-center mb-2">
+            <label for="ppjPercent" class="font-mono text-[10px] uppercase tracking-widest text-slate-400">Tarif PPJ Daerah</label>
+            <span id="ppjLabel" class="font-mono text-xs font-bold text-slate-950 bg-lime-400 px-2 py-0.5 rounded">3%</span>
+          </div>
+          <input type="range" id="ppjPercent" min="0" max="10" step="0.5" value="3" oninput="calculateToken()" class="w-full">
+        </div>
+      </div>
+
+      <div class="hw-card-violet rounded-xl p-4 space-y-2">
+        <p class="font-mono text-[10px] uppercase tracking-widest text-indigo-300">Daftar Konversi Cepat</p>
+        <div id="quickTokenTable" class="grid grid-cols-2 gap-2 pt-1"></div>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 3: ALAT ELEKTRONIK ==================== -->
+    <section id="viewDevices" class="hidden space-y-4">
+      <div class="lcd-screen rounded-2xl p-4 grid grid-cols-2 divide-x divide-lime-400/20">
+        <div class="pr-3">
+          <p class="font-mono text-[10px] text-slate-400">RATA-RATA HARIAN</p>
+          <p id="dailyCostTotal" class="font-lcd font-bold text-2xl text-lime-300 mt-0.5">Rp 0</p>
+          <p id="dailyKwhTotal" class="font-mono text-[10px] text-slate-400 mt-0.5">0.00 kWh/hari</p>
+        </div>
+        <div class="pl-3.5">
+          <p class="font-mono text-[10px] text-slate-400">ESTIMASI 30 HARI</p>
+          <p id="monthlyCostTotal" class="font-lcd font-bold text-2xl text-indigo-300 mt-0.5">Rp 0</p>
+          <p id="monthlyKwhTotal" class="font-mono text-[10px] text-slate-400 mt-0.5">0.0 kWh/bln</p>
+        </div>
+      </div>
+
+      <div class="hw-card rounded-xl p-4 space-y-3.5">
+        <div class="flex items-center justify-between">
+          <span id="formDeviceTitle" class="font-mono text-[10px] uppercase tracking-widest text-lime-400">+ Tambah / Input Manual</span>
+          <button type="button" onclick="togglePresetDrawer()" class="font-mono text-[10px] bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-400/30 px-2.5 py-1 rounded transition">
+            KATALOG 25+ ALAT ▾
+          </button>
+        </div>
+
+        <div id="presetDrawer" class="hidden bg-[#06090e] border border-white/10 rounded-xl p-2.5 space-y-2">
+          <input type="text" id="presetFilterInput" oninput="renderPresetCatalog()" placeholder="Cari preset (misal: setrika, pompa, tv, ac)..." class="w-full bg-[#0d111a] border border-white/10 focus:border-indigo-400 rounded-lg py-1.5 px-2.5 text-xs text-white outline-none">
+          <div id="presetCatalogGrid" class="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-0.5"></div>
+        </div>
+
+        <div>
+          <label for="devName" class="block font-mono text-[10px] text-slate-400 mb-1">NAMA ALAT (KETIK MANUAL BEBAS)</label>
+          <input type="text" id="devName" placeholder="Misal: Setrika / Pompa Air / Dispenser / TV" class="w-full bg-[#06090e] border border-white/10 focus:border-lime-400 rounded-lg py-2.5 px-3 text-xs text-white placeholder-slate-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label for="devWatt" class="block font-mono text-[10px] text-slate-400 mb-1">DAYA LISTRIK (WATT)</label>
+            <input type="number" id="devWatt" placeholder="Misal: 300" min="1" class="w-full bg-[#06090e] border border-white/10 focus:border-lime-400 rounded-lg py-2.5 px-3 font-mono text-xs text-white outline-none">
+          </div>
+          <div>
+            <label for="devQty" class="block font-mono text-[10px] text-slate-400 mb-1">JUMLAH UNIT</label>
+            <input type="number" id="devQty" value="1" min="1" max="100" class="w-full bg-[#06090e] border border-white/10 focus:border-lime-400 rounded-lg py-2.5 px-3 font-mono text-xs text-white outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label for="devHours" class="block font-mono text-[10px] text-slate-400 mb-1">JAM NYALA</label>
+            <input type="number" id="devHours" placeholder="0" min="0" max="24" class="w-full bg-[#06090e] border border-white/10 focus:border-lime-400 rounded-lg py-2 px-2.5 font-mono text-xs text-white outline-none">
+          </div>
+          <div>
+            <label for="devMinutes" class="block font-mono text-[10px] text-slate-400 mb-1">MENIT</label>
+            <input type="number" id="devMinutes" placeholder="0" min="0" max="59" class="w-full bg-[#06090e] border border-white/10 focus:border-lime-400 rounded-lg py-2 px-2.5 font-mono text-xs text-white outline-none">
+          </div>
+          <div>
+            <label for="devDaysPerWeek" class="block font-mono text-[10px] text-slate-400 mb-1">PEMAKAIAN</label>
+            <div class="relative">
+              <select id="devDaysPerWeek" class="w-full bg-[#06090e] border border-white/10 focus:border-lime-400 rounded-lg py-2 pl-2 pr-6 font-mono text-[11px] text-white outline-none cursor-pointer">
+                <option value="7">Tiap Hari</option>
+                <option value="5">5x / Mgg</option>
+                <option value="3">3x / Mgg</option>
+                <option value="2">2x / Mgg</option>
+                <option value="1">1x / Mgg</option>
+              </select>
+              <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">▾</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-0.5">
+          <button type="button" id="cancelEditBtn" onclick="resetDeviceForm()" class="hidden px-3 py-2.5 rounded-lg bg-white/[0.06] text-slate-300 font-mono text-xs font-bold">
+            BATAL
+          </button>
+          <button type="button" id="saveDeviceBtn" onclick="saveDevice()" class="tactile-btn flex-1 bg-lime-400 hover:bg-lime-300 text-slate-950 font-lcd font-bold text-xs tracking-wider py-2.5 rounded-lg uppercase">
+            Simpan Perangkat
+          </button>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between px-1">
+          <span class="font-mono text-[10px] uppercase tracking-widest text-slate-400">Daftar Aktif (<span id="deviceCount">0</span>)</span>
+          <button type="button" id="clearDevicesBtn" onclick="clearAllDevices()" class="hidden font-mono text-[10px] text-rose-400">RESET SEMUA</button>
+        </div>
+        <div id="deviceList" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 4: RADAR SISA METERAN & MCB ==================== -->
+    <section id="viewRadar" class="hidden space-y-4">
+      <div class="lcd-screen rounded-2xl p-4 space-y-3">
+        <div class="flex justify-between items-center">
+          <span class="font-mono text-[10px] text-lime-400">PREDIKSI JADWAL HARIAN</span>
+          <span id="radarDailyUsageText" class="font-mono text-[10px] text-slate-400">0.00 kWh/hari</span>
+        </div>
+        <div class="flex items-baseline justify-between">
+          <span id="daysLeftBadge" class="font-lcd font-bold text-4xl text-lime-300">-- HARI</span>
+          <div class="text-right">
+            <p class="font-mono text-[10px] text-slate-400">PERKIRAAN HABIS</p>
+            <p id="emptyDateText" class="font-mono text-xs font-bold text-white">-</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="hw-card-violet rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="font-mono text-[10px] uppercase tracking-widest text-indigo-300">Beban Puncak MCB</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Total daya jika semua alat menyala</p>
+          </div>
+          <span id="mcbStatusPill" class="font-mono text-[10px] font-bold px-2 py-1 rounded bg-lime-400/15 text-lime-300 border border-lime-400/30">AMAN</span>
+        </div>
+
+        <div class="space-y-1.5">
+          <div class="flex justify-between font-mono text-xs">
+            <span id="totalPeakWattText" class="text-white font-bold">0 W</span>
+            <span id="maxMcbWattText" class="text-slate-400">Batas 1.300 VA</span>
+          </div>
+          <div class="w-full h-3 bg-[#06090e] rounded overflow-hidden p-0.5 border border-white/10">
+            <div id="mcbProgressBar" class="h-full bg-lime-400 rounded-sm transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Floating Bottom Dock Navigation -->
+  <nav class="fixed bottom-4 left-3 right-3 z-30 max-w-md mx-auto">
+    <div class="bg-[#0e131f]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-[0_12px_35px_rgba(0,0,0,0.85)] grid grid-cols-4 gap-1">
+      <button type="button" id="navLive" onclick="switchView('Live')" class="py-2 rounded-xl flex flex-col items-center justify-center gap-1 bg-lime-400 text-slate-950 font-bold transition-all">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+        </svg>
+        <span class="font-mono text-[9px] tracking-wide">LIVE KWH</span>
+      </button>
+      <button type="button" id="navToken" onclick="switchView('Token')" class="py-2 rounded-xl flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white font-semibold transition-all">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span class="font-mono text-[9px] tracking-wide">TOKEN</span>
+      </button>
+      <button type="button" id="navDevices" onclick="switchView('Devices')" class="py-2 rounded-xl flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white font-semibold transition-all">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <rect x="4" y="2" width="16" height="20" rx="2"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
+        <span class="font-mono text-[9px] tracking-wide">ALAT</span>
+      </button>
+      <button type="button" id="navRadar" onclick="switchView('Radar')" class="py-2 rounded-xl flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white font-semibold transition-all">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span class="font-mono text-[9px] tracking-wide">RADAR</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Modal Info & Cek Update -->
+  <div id="infoModal" onclick="closeInfoModal(event)" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div onclick="event.stopPropagation()" class="w-full max-w-sm hw-card rounded-2xl p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 class="font-lcd font-bold text-base text-white">VOLTMETER</h3>
+        <button type="button" onclick="closeInfoModal()" class="w-7 h-7 rounded bg-white/5 text-slate-400 hover:text-white flex items-center justify-center text-xs">✕</button>
+      </div>
+      <p class="text-xs text-slate-300 leading-relaxed">
+        Simulasi kWh meteran listrik prabayar real-time dengan sakelar ON/OFF per perangkat elektronik, kalibrasi meteran fisik, dan kalkulator token PLN.
+      </p>
+      <div class="bg-[#06090e] border border-white/10 rounded-xl p-3 space-y-1.5 font-mono text-[11px]">
+        <div class="flex justify-between"><span class="text-slate-400">DEV</span><span class="text-white">Wahyu Firman Nugraha</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">REPO</span><span id="repoLabelText" class="text-lime-400">WFNMKBOT/voltmeter-pln</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">VERSI</span><span id="modalVersionText" class="text-slate-200">v1.0.0</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">STATUS</span><span id="updateStatusText" class="text-slate-400">Memeriksa...</span></div>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" id="checkUpdateManualBtn" onclick="checkForUpdates(true)" class="tactile-btn flex-1 py-2.5 rounded-lg bg-[#151c2c] hover:bg-[#1c253a] font-mono text-xs font-bold text-lime-300">
+          CEK UPDATE APK
+        </button>
+        <a id="modalDownloadBtn" href="#" target="_blank" rel="noopener noreferrer" class="hidden tactile-btn flex-1 py-2.5 rounded-lg bg-lime-400 text-slate-950 font-mono text-xs font-bold text-center">
+          UNDUH APK BARU
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Popup Pembaruan Tersedia -->
+  <div id="updateModal" onclick="closeUpdateModal(event)" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div onclick="event.stopPropagation()" class="w-full max-w-sm hw-card rounded-2xl p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-lime-400/20 text-lime-300 border border-lime-400/30">PEMBARUAN TERSEDIA</span>
+          <h3 id="updateModalTitle" class="font-lcd font-bold text-lg text-white mt-1.5">Versi Terbaru</h3>
+        </div>
+        <button type="button" onclick="closeUpdateModal()" class="w-7 h-7 rounded bg-white/5 text-slate-400 hover:text-white flex items-center justify-center text-xs">✕</button>
+      </div>
+      <div id="updateChangelog" class="bg-[#06090e] border border-white/10 rounded-xl p-3 text-xs text-slate-300 max-h-40 overflow-y-auto whitespace-pre-line font-mono">
+        Pembaruan performa dan fitur terbaru.
+      </div>
+      <div class="flex gap-2">
+        <button type="button" onclick="closeUpdateModal()" class="flex-1 py-2.5 rounded-lg bg-white/[0.06] text-slate-300 font-mono text-xs font-bold">
+          NANTI
+        </button>
+        <a id="updateDownloadLink" href="#" target="_blank" rel="noopener noreferrer" class="tactile-btn flex-1 py-2.5 rounded-lg bg-lime-400 text-slate-950 font-mono text-xs font-bold text-center">
+          DOWNLOAD APK
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-lime-400 text-slate-950 font-mono text-xs font-bold px-4 py-2 rounded-lg shadow-2xl opacity-0 -translate-y-2 pointer-events-none transition-all duration-200">
+    <span id="toastText">Notifikasi</span>
+  </div>
+
+  <script>
+    // Sesuaikan nama repo GitHub jika berbeda
+    const GITHUB_REPO = 'WFNMKBOT/voltmeter-pln';
+    const CURRENT_VERSION = '__APP_VERSION__';
+    const DISPLAY_VERSION = CURRENT_VERSION.includes('APP_VERSION') ? 'v1.0.0' : CURRENT_VERSION;
+
+    document.getElementById('modalVersionText').textContent = DISPLAY_VERSION;
+    document.getElementById('repoLabelText').textContent = GITHUB_REPO;
+
+    const TARIFF_LIST = [
+      { key: '450', short: '450 VA', name: 'R-1/TR 450 VA (Subsidi)', rate: 415, maxVa: 450 },
+      { key: '900_sub', short: '900 Sub', name: 'R-1/TR 900 VA (Subsidi)', rate: 605, maxVa: 900 },
+      { key: '900_rtm', short: '900 RTM', name: 'R-1/TR 900 VA (RTM)', rate: 1352, maxVa: 900 },
+      { key: '1300', short: '1.300 VA', name: 'R-1/TR 1.300 VA', rate: 1444.70, maxVa: 1300 },
+      { key: '2200', short: '2.200 VA', name: 'R-1/TR 2.200 VA', rate: 1444.70, maxVa: 2200 },
+      { key: '3500', short: '3.500+ VA', name: 'R-2/TR 3.500-5.500 VA', rate: 1699.53, maxVa: 3500 }
+    ];
+
+    const PRESET_CATALOG = [
+      { name: 'AC 1/2 PK Inverter', watt: 260, hours: 8, mins: 0, days: 7 },
+      { name: 'AC 1/2 PK Standar', watt: 350, hours: 8, mins: 0, days: 7 },
+      { name: 'AC 1 PK', watt: 750, hours: 8, mins: 0, days: 7 },
+      { name: 'Kulkas 1 Pintu', watt: 75, hours: 24, mins: 0, days: 7 },
+      { name: 'Kulkas 2 Pintu', watt: 120, hours: 24, mins: 0, days: 7 },
+      { name: 'Freezer Box', watt: 150, hours: 24, mins: 0, days: 7 },
+      { name: 'Rice Cooker (Masak)', watt: 350, hours: 1, mins: 0, days: 7 },
+      { name: 'Rice Cooker (Hangat)', watt: 45, hours: 10, mins: 0, days: 7 },
+      { name: 'Dispenser Panas/Dingin', watt: 350, hours: 6, mins: 0, days: 7 },
+      { name: 'Mesin Cuci 1 Tabung', watt: 350, hours: 1, mins: 0, days: 3 },
+      { name: 'Setrika Listrik', watt: 300, hours: 0, mins: 45, days: 3 },
+      { name: 'Pompa Air Sumur', watt: 125, hours: 1, mins: 30, days: 7 },
+      { name: 'TV LED 32-43 Inch', watt: 65, hours: 5, mins: 0, days: 7 },
+      { name: 'Set Top Box / Android TV', watt: 15, hours: 5, mins: 0, days: 7 },
+      { name: 'Router WiFi / Modem', watt: 12, hours: 24, mins: 0, days: 7 },
+      { name: 'PC Gaming / Kerja', watt: 250, hours: 6, mins: 0, days: 7 },
+      { name: 'Laptop + Monitor', watt: 75, hours: 8, mins: 0, days: 7 },
+      { name: 'Kipas Angin Stand', watt: 45, hours: 10, mins: 0, days: 7 },
+      { name: 'Exhaust Fan', watt: 30, hours: 8, mins: 0, days: 7 },
+      { name: 'Lampu LED Kamar', watt: 12, hours: 12, mins: 0, days: 7 },
+      { name: 'Lampu Teras Malam', watt: 15, hours: 12, mins: 0, days: 7 },
+      { name: 'Charger HP', watt: 25, hours: 2, mins: 0, days: 7 },
+      { name: 'Microwave', watt: 800, hours: 0, mins: 15, days: 5 },
+      { name: 'Air Fryer', watt: 1000, hours: 0, mins: 20, days: 3 },
+      { name: 'Blender / Juicer', watt: 250, hours: 0, mins: 10, days: 5 },
+      { name: 'Water Heater Listrik', watt: 1200, hours: 0, mins: 30, days: 7 },
+      { name: 'Hair Dryer', watt: 600, hours: 0, mins: 15, days: 5 },
+      { name: 'Pompa & Lampu Aquarium', watt: 25, hours: 24, mins: 0, days: 7 }
+    ];
+
+    let activeTariffKey = localStorage.getItem('voltmeter_tariff') || '1300';
+    let devices = JSON.parse(localStorage.getItem('voltmeter_devices') || '[]');
+    if (devices.length === 0) {
+      devices = [
+        { id: 1, name: 'Kulkas 2 Pintu', watt: 120, hours: 24, mins: 0, qty: 1, daysPerWeek: 7, isOn: true },
+        { id: 2, name: 'Router WiFi', watt: 12, hours: 24, mins: 0, qty: 1, daysPerWeek: 7, isOn: true },
+        { id: 3, name: 'Lampu LED', watt: 12, hours: 12, mins: 0, qty: 4, daysPerWeek: 7, isOn: false }
+      ];
+      localStorage.setItem('voltmeter_devices', JSON.stringify(devices));
+    }
+
+    let liveMeterState = JSON.parse(localStorage.getItem('voltmeter_live_state') || 'null');
+    if (!liveMeterState || typeof liveMeterState.anchorKwh !== 'number') {
+      liveMeterState = {
+        anchorKwh: 45.50,
+        anchorTimestamp: Date.now()
+      };
+      localStorage.setItem('voltmeter_live_state', JSON.stringify(liveMeterState));
+    }
+
+    let editingDeviceId = null;
+    let lastTokenSummaryText = '';
+    let lastCalculatedTokenKwh = 67.14;
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = msg;
+      toast.classList.remove('opacity-0', '-translate-y-2');
+      setTimeout(() => toast.classList.add('opacity-0', '-translate-y-2'), 2100);
+    }
+
+    function openInfoModal() {
+      document.getElementById('infoModal').classList.remove('hidden');
+    }
+
+    function closeInfoModal(e) {
+      if (!e || e.target.id === 'infoModal') {
+        document.getElementById('infoModal').classList.add('hidden');
+      }
+    }
+
+    function openUpdateModal() {
+      document.getElementById('updateModal').classList.remove('hidden');
+    }
+
+    function closeUpdateModal(e) {
+      if (!e || e.target.id === 'updateModal') {
+        document.getElementById('updateModal').classList.add('hidden');
+      }
+    }
+
+    // ==================== AUTO-CHECK UPDATE GITHUB RELEASES ====================
+    function compareVersions(v1, v2) {
+      const a = String(v1).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+      const b = String(v2).replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        if ((a[i] || 0) > (b[i] || 0)) return 1;
+        if ((a[i] || 0) < (b[i] || 0)) return -1;
+      }
+      return 0;
+    }
+
+    async function checkForUpdates(isManual = false) {
+      const statusEl = document.getElementById('updateStatusText');
+      if (isManual) {
+        statusEl.textContent = 'Mengecek...';
+        showToast('MENGECEK PEMBARUAN...');
+      }
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (!res.ok) throw new Error('Release belum tersedia');
+
+        const data = await res.json();
+        const latestTag = data.tag_name || 'v1.0.0';
+        const apkAsset = (data.assets || []).find(a => a.name && a.name.endsWith('.apk'));
+        const downloadUrl = apkAsset ? apkAsset.browser_download_url : data.html_url;
+
+        if (compareVersions(latestTag, DISPLAY_VERSION) > 0) {
+          statusEl.textContent = `Tersedia ${latestTag}`;
+          statusEl.className = 'text-lime-400 font-bold';
+
+          document.getElementById('updateHeaderBtn').classList.remove('hidden');
+          document.getElementById('updateHeaderBtn').textContent = `UPDATE ${latestTag}`;
+
+          document.getElementById('updateModalTitle').textContent = `Versi ${latestTag} Tersedia`;
+          document.getElementById('updateChangelog').textContent = data.body || 'Pembaruan aplikasi VoltMeter Pro.';
+          document.getElementById('updateDownloadLink').href = downloadUrl;
+
+          const modalDlBtn = document.getElementById('modalDownloadBtn');
+          modalDlBtn.href = downloadUrl;
+          modalDlBtn.classList.remove('hidden');
+
+          if (isManual) {
+            closeInfoModal();
+            openUpdateModal();
+          }
+        } else {
+          statusEl.textContent = 'Sudah Terbaru';
+          statusEl.className = 'text-lime-400';
+          if (isManual) showToast('SUDAH VERSI TERBARU');
+        }
+      } catch (err) {
+        statusEl.textContent = 'Offline / Belum Rilis';
+        if (isManual) showToast('GAGAL CEK UPDATE (OFFLINE)');
+      }
+    }
+
+    function switchView(viewName) {
+      ['Live', 'Token', 'Devices', 'Radar'].forEach(v => {
+        const active = v === viewName;
+        document.getElementById('view' + v).classList.toggle('hidden', !active);
+        document.getElementById('nav' + v).className = active
+          ? 'py-2 rounded-xl flex flex-col items-center justify-center gap-1 bg-lime-400 text-slate-950 font-bold transition-all'
+          : 'py-2 rounded-xl flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-white font-semibold transition-all';
+      });
+    }
+
+    function getActiveTariff() {
+      return TARIFF_LIST.find(t => t.key === activeTariffKey) || TARIFF_LIST[3];
+    }
+
+    function selectTariff(key) {
+      activeTariffKey = key;
+      localStorage.setItem('voltmeter_tariff', key);
+      renderTariffStrip();
+      const t = getActiveTariff();
+      document.getElementById('tariffInfoSub').textContent = `${t.name} • Rp ${t.rate.toLocaleString('id-ID')}/kWh`;
+      calculateToken();
+      renderDevices();
+      updateLiveDisplay();
+    }
+
+    function renderTariffStrip() {
+      const strip = document.getElementById('tariffStrip');
+      strip.innerHTML = TARIFF_LIST.map(t => {
+        const isSelected = t.key === activeTariffKey;
+        return `
+          <button type="button" onclick="selectTariff('${t.key}')" class="shrink-0 px-3 py-1.5 rounded-lg font-mono text-[11px] font-bold transition ${
+            isSelected
+              ? 'bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.45)]'
+              : 'bg-[#111622] text-slate-400 border border-white/[0.06] hover:text-white'
+          }">
+            ${t.short}
+          </button>
+        `;
+      }).join('');
+    }
+
+    // ==================== MESIN LIVE KWH REAL-TIME ====================
+    function getLiveActiveWatt() {
+      return devices.reduce((sum, d) => d.isOn ? sum + (d.watt * (d.qty || 1)) : sum, 0);
+    }
+
+    function getCurrentLiveKwh() {
+      const activeWatt = getLiveActiveWatt();
+      const elapsedHours = Math.max(0, (Date.now() - liveMeterState.anchorTimestamp) / 3600000);
+      const consumedKwh = (activeWatt / 1000) * elapsedHours;
+      return Math.max(0, liveMeterState.anchorKwh - consumedKwh);
+    }
+
+    function commitLiveSnapshot(overrideKwh = null) {
+      const current = overrideKwh !== null ? Math.max(0, overrideKwh) : getCurrentLiveKwh();
+      liveMeterState = {
+        anchorKwh: current,
+        anchorTimestamp: Date.now()
+      };
+      localStorage.setItem('voltmeter_live_state', JSON.stringify(liveMeterState));
+    }
+
+    function openCalibrateBox() {
+      const box = document.getElementById('calibrateBox');
+      box.classList.remove('hidden');
+      const inp = document.getElementById('calibrateInput');
+      inp.value = getCurrentLiveKwh().toFixed(2);
+      inp.focus();
+    }
+
+    function closeCalibrateBox() {
+      document.getElementById('calibrateBox').classList.add('hidden');
+    }
+
+    function applyCalibration() {
+      const val = parseFloat(document.getElementById('calibrateInput').value);
+      if (isNaN(val) || val < 0) {
+        showToast('ANGKA KWH TIDAK VALID');
+        return;
+      }
+      commitLiveSnapshot(val);
+      closeCalibrateBox();
+      updateLiveDisplay();
+      showToast(`METER DIKALIBRASI: ${val.toFixed(2)} KWH`);
+    }
+
+    function topUpToLiveMeter() {
+      const current = getCurrentLiveKwh();
+      const newTotal = current + lastCalculatedTokenKwh;
+      commitLiveSnapshot(newTotal);
+      updateLiveDisplay();
+      switchView('Live');
+      showToast(`+${lastCalculatedTokenKwh.toFixed(2)} KWH DITAMBAHKAN`);
+    }
+
+    function toggleLiveDevice(id) {
+      commitLiveSnapshot();
+      devices = devices.map(d => d.id === id ? { ...d, isOn: !d.isOn } : d);
+      localStorage.setItem('voltmeter_devices', JSON.stringify(devices));
+      renderLiveSwitches();
+      updateLiveDisplay();
+    }
+
+    function toggleAllLiveDevices(turnOn) {
+      commitLiveSnapshot();
+      devices = devices.map(d => ({ ...d, isOn: turnOn }));
+      localStorage.setItem('voltmeter_devices', JSON.stringify(devices));
+      renderLiveSwitches();
+      updateLiveDisplay();
+      showToast(turnOn ? 'SEMUA PERANGKAT ON' : 'SEMUA PERANGKAT OFF');
+    }
+
+    function renderLiveSwitches() {
+      const listEl = document.getElementById('liveSwitchList');
+      const onCount = devices.filter(d => d.isOn).length;
+      document.getElementById('liveOnCount').textContent = onCount;
+      document.getElementById('liveTotalCount').textContent = devices.length;
+
+      if (devices.length === 0) {
+        listEl.innerHTML = `<div class="border border-dashed border-white/10 rounded-xl p-6 text-center font-mono text-xs text-slate-500">BELUM ADA PERANGKAT DI DAFTAR</div>`;
+        return;
+      }
+
+      listEl.innerHTML = devices.map(d => {
+        const totalW = d.watt * (d.qty || 1);
+        const isOn = Boolean(d.isOn);
+        return `
+          <div onclick="toggleLiveDevice(${d.id})" class="cursor-pointer rounded-xl p-3 flex items-center justify-between gap-3 transition border ${
+            isOn
+              ? 'bg-[#101814] border-lime-400/40 shadow-[0_0_15px_rgba(163,230,53,0.08)]'
+              : 'bg-[#0d111a] border-white/[0.06] opacity-70 hover:opacity-100'
+          }">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full ${isOn ? 'bg-lime-400 shadow-[0_0_8px_#a3e635]' : 'bg-slate-600'}"></span>
+                <p class="text-xs font-bold text-white truncate">${escapeHtml(d.name)}</p>
+                ${d.qty > 1 ? `<span class="font-mono text-[10px] px-1.5 rounded bg-white/10 text-slate-300">x${d.qty}</span>` : ''}
+              </div>
+              <p class="font-mono text-[10px] ${isOn ? 'text-lime-300' : 'text-slate-500'} mt-0.5 pl-4">
+                ${totalW} Watt ${isOn ? '• SEDANG MENYEDOT DAYA' : '• MATI'}
+              </p>
+            </div>
+
+            <div class="shrink-0 w-12 h-6 rounded-full p-0.5 transition-colors flex items-center ${isOn ? 'bg-lime-400 justify-end' : 'bg-slate-800 justify-start'}">
+              <span class="w-5 h-5 rounded-full bg-slate-950 shadow"></span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateLiveDisplay() {
+      const t = getActiveTariff();
+      const kwhNow = getCurrentLiveKwh();
+      const activeWatt = getLiveActiveWatt();
+      const isLow = kwhNow <= 5.0;
+
+      const lcdBox = document.getElementById('liveLcdBox');
+      const digitsEl = document.getElementById('liveKwhDigits');
+      const statusTextEl = document.getElementById('liveStatusText');
+      const statusIndEl = document.getElementById('liveStatusIndicator');
+      const pulseDot = document.getElementById('livePulseDot');
+
+      digitsEl.textContent = kwhNow.toFixed(4);
+
+      if (isLow) {
+        lcdBox.className = 'lcd-screen-alarm rounded-2xl p-4 relative overflow-hidden transition-colors duration-300';
+        digitsEl.className = 'font-lcd font-bold text-5xl tracking-wider text-rose-400 drop-shadow-[0_0_12px_rgba(244,63,94,0.45)]';
+        statusIndEl.className = 'flex items-center gap-1.5 text-rose-400 font-bold';
+        pulseDot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping';
+        statusTextEl.textContent = 'ALARM: TOKEN MENIPIS (< 5 KWH)';
+      } else {
+        lcdBox.className = 'lcd-screen rounded-2xl p-4 relative overflow-hidden transition-colors duration-300';
+        digitsEl.className = 'font-lcd font-bold text-5xl tracking-wider text-lime-300 drop-shadow-[0_0_12px_rgba(163,230,53,0.4)]';
+        statusIndEl.className = 'flex items-center gap-1.5 text-lime-400 font-bold';
+        if (activeWatt > 0) {
+          pulseDot.className = 'w-2 h-2 rounded-full bg-lime-400 animate-ping';
+          statusTextEl.textContent = 'METER AKTIF BERJALAN';
+        } else {
+          pulseDot.className = 'w-2 h-2 rounded-full bg-slate-500';
+          statusTextEl.textContent = 'METER STANDBY (0 W)';
+        }
+      }
+
+      document.getElementById('liveActiveWatt').textContent = `${activeWatt.toLocaleString('id-ID')} W`;
+      const costPerHour = (activeWatt / 1000) * t.rate;
+      document.getElementById('liveCostPerHour').textContent = `Rp ${Math.round(costPerHour).toLocaleString('id-ID')}`;
+
+      const countdownEl = document.getElementById('liveCountdownText');
+      if (activeWatt <= 0) {
+        countdownEl.textContent = 'STANDBY';
+      } else if (kwhNow <= 0) {
+        countdownEl.textContent = '00J 00M';
+      } else {
+        const hoursLeft = kwhNow / (activeWatt / 1000);
+        if (hoursLeft >= 48) {
+          countdownEl.textContent = `${(hoursLeft / 24).toFixed(1)} HARI`;
+        } else {
+          const h = Math.floor(hoursLeft);
+          const m = Math.floor((hoursLeft - h) * 60);
+          countdownEl.textContent = `${h}J ${m}M`;
+        }
+      }
+    }
+
+    setInterval(updateLiveDisplay, 1000);
+
+    // ==================== TOKEN PLN ====================
+    function setTokenNominal(val) {
+      document.getElementById('tokenAmount').value = val;
+      calculateToken();
+    }
+
+    function calculateToken() {
+      const t = getActiveTariff();
+      const amount = Math.max(0, parseFloat(document.getElementById('tokenAmount').value) || 0);
+      const ppj = parseFloat(document.getElementById('ppjPercent').value) || 0;
+
+      document.getElementById('ppjLabel').textContent = `${ppj}%`;
+      document.getElementById('ppjInlineText').textContent = `${ppj}%`;
+
+      const ppjCut = amount * (ppj / 100);
+      const netAmount = Math.max(0, amount - ppjCut);
+      const kwh = netAmount / t.rate;
+      lastCalculatedTokenKwh = kwh;
+
+      document.getElementById('resultKwh').textContent = kwh.toFixed(2);
+      document.getElementById('resultPpjRupiah').textContent = `- Rp ${Math.round(ppjCut).toLocaleString('id-ID')}`;
+      document.getElementById('resultNetRupiah').textContent = `Rp ${Math.round(netAmount).toLocaleString('id-ID')}`;
+
+      lastTokenSummaryText = `*Token PLN (${t.name})*\nNominal: Rp ${amount.toLocaleString('id-ID')}\nPPJ (${ppj}%): -Rp ${Math.round(ppjCut).toLocaleString('id-ID')}\nMasuk Meteran: *${kwh.toFixed(2)} kWh*`;
+
+      const nominals = [20000, 50000, 100000, 200000, 500000, 1000000];
+      document.getElementById('quickTokenTable').innerHTML = nominals.map(nom => {
+        const k = (nom * (1 - ppj / 100)) / t.rate;
+        return `
+          <button type="button" onclick="setTokenNominal(${nom})" class="bg-[#06090e] hover:bg-indigo-500/10 border border-white/[0.06] rounded-lg p-2.5 text-left transition">
+            <p class="font-mono text-[10px] text-slate-400">Rp ${(nom / 1000).toLocaleString('id-ID')}rb</p>
+            <p class="font-lcd font-bold text-sm text-lime-300 mt-0.5">${k.toFixed(2)} kWh</p>
+          </button>
+        `;
+      }).join('');
+    }
+
+    async function copyTokenResult() {
+      if (!lastTokenSummaryText) return;
+      try {
+        await navigator.clipboard.writeText(lastTokenSummaryText);
+        showToast('DISALIN KE CLIPBOARD');
+      } catch (e) {}
+    }
+
+    // ==================== KATALOG & DAFTAR ALAT ====================
+    function togglePresetDrawer() {
+      const drawer = document.getElementById('presetDrawer');
+      drawer.classList.toggle('hidden');
+      if (!drawer.classList.contains('hidden')) {
+        renderPresetCatalog();
+      }
+    }
+
+    function renderPresetCatalog() {
+      const filter = (document.getElementById('presetFilterInput').value || '').trim().toLowerCase();
+      const filtered = PRESET_CATALOG.filter(p => p.name.toLowerCase().includes(filter));
+      const grid = document.getElementById('presetCatalogGrid');
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<p class="col-span-2 text-center font-mono text-[10px] text-slate-500 py-3">Tidak ada preset cocok, ketik manual di bawah</p>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map((p) => `
+        <button type="button" onclick="applyPresetItem('${p.name.replace(/'/g, "\\'")}', ${p.watt}, ${p.hours}, ${p.mins}, ${p.days})" class="bg-[#0d111a] hover:bg-lime-400/15 border border-white/[0.07] hover:border-lime-400/40 rounded-lg p-2 text-left transition">
+          <p class="text-[11px] font-semibold text-white truncate">${p.name}</p>
+          <p class="font-mono text-[10px] text-lime-400 mt-0.5">${p.watt}W • ${p.hours}j ${p.mins > 0 ? p.mins + 'm' : ''}</p>
+        </button>
+      `).join('');
+    }
+
+    function applyPresetItem(name, watt, hours, mins, days) {
+      document.getElementById('devName').value = name;
+      document.getElementById('devWatt').value = watt;
+      document.getElementById('devHours').value = hours;
+      document.getElementById('devMinutes').value = mins;
+      document.getElementById('devQty').value = 1;
+      document.getElementById('devDaysPerWeek').value = String(days || 7);
+      document.getElementById('presetDrawer').classList.add('hidden');
+      showToast(`PRESET: ${name.toUpperCase()}`);
+    }
+
+    function editDevice(id) {
+      const item = devices.find(d => d.id === id);
+      if (!item) return;
+
+      editingDeviceId = id;
+      document.getElementById('formDeviceTitle').textContent = '✎ EDIT PERANGKAT';
+      document.getElementById('saveDeviceBtn').textContent = 'Update Perangkat';
+      document.getElementById('cancelEditBtn').classList.remove('hidden');
+
+      document.getElementById('devName').value = item.name;
+      document.getElementById('devWatt').value = item.watt;
+      document.getElementById('devHours').value = item.hours || 0;
+      document.getElementById('devMinutes').value = item.mins || 0;
+      document.getElementById('devQty').value = item.qty || 1;
+      document.getElementById('devDaysPerWeek').value = String(item.daysPerWeek || 7);
+
+      document.getElementById('devName').focus();
+    }
+
+    function resetDeviceForm() {
+      editingDeviceId = null;
+      document.getElementById('formDeviceTitle').textContent = '+ TAMBAH / INPUT MANUAL';
+      document.getElementById('saveDeviceBtn').textContent = 'Simpan Perangkat';
+      document.getElementById('cancelEditBtn').classList.add('hidden');
+
+      document.getElementById('devName').value = '';
+      document.getElementById('devWatt').value = '';
+      document.getElementById('devHours').value = '';
+      document.getElementById('devMinutes').value = '';
+      document.getElementById('devQty').value = '1';
+      document.getElementById('devDaysPerWeek').value = '7';
+    }
+
+    function saveDevice() {
+      const name = document.getElementById('devName').value.trim();
+      const watt = parseFloat(document.getElementById('devWatt').value);
+      const hours = Math.min(24, Math.max(0, parseFloat(document.getElementById('devHours').value) || 0));
+      const mins = Math.min(59, Math.max(0, parseFloat(document.getElementById('devMinutes').value) || 0));
+      const qty = Math.max(1, parseInt(document.getElementById('devQty').value) || 1);
+      const daysPerWeek = parseInt(document.getElementById('devDaysPerWeek').value) || 7;
+
+      const totalHoursPerDay = hours + (mins / 60);
+
+      if (!name) {
+        showToast('ISI NAMA ALAT TERLEBIH DAHULU');
+        document.getElementById('devName').focus();
+        return;
+      }
+      if (!watt || watt <= 0) {
+        showToast('ISI DAYA WATT YANG VALID');
+        document.getElementById('devWatt').focus();
+        return;
+      }
+      if (totalHoursPerDay <= 0 || totalHoursPerDay > 24) {
+        showToast('ISI JAM ATAU MENIT NYALA (MAKS 24 JAM)');
+        document.getElementById('devHours').focus();
+        return;
+      }
+
+      commitLiveSnapshot();
+
+      if (editingDeviceId !== null) {
+        devices = devices.map(d => d.id === editingDeviceId ? {
+          ...d,
+          name,
+          watt,
+          hours,
+          mins,
+          qty,
+          daysPerWeek
+        } : d);
+        showToast('PERANGKAT DIPERBARUI');
+      } else {
+        devices.unshift({
+          id: Date.now(),
+          name,
+          watt,
+          hours,
+          mins,
+          qty,
+          daysPerWeek,
+          isOn: true
+        });
+        showToast('PERANGKAT DITAMBAHKAN');
+      }
+
+      localStorage.setItem('voltmeter_devices', JSON.stringify(devices));
+      resetDeviceForm();
+      renderDevices();
+      renderLiveSwitches();
+      updateLiveDisplay();
+    }
+
+    function removeDevice(id) {
+      commitLiveSnapshot();
+      if (editingDeviceId === id) resetDeviceForm();
+      devices = devices.filter(d => d.id !== id);
+      localStorage.setItem('voltmeter_devices', JSON.stringify(devices));
+      renderDevices();
+      renderLiveSwitches();
+      updateLiveDisplay();
+      showToast('PERANGKAT DIHAPUS');
+    }
+
+    function clearAllDevices() {
+      commitLiveSnapshot();
+      resetDeviceForm();
+      devices = [];
+      localStorage.setItem('voltmeter_devices', JSON.stringify(devices));
+      renderDevices();
+      renderLiveSwitches();
+      updateLiveDisplay();
+      showToast('DAFTAR DIKOSONGKAN');
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+
+    function calcDeviceAvgDailyKwh(d) {
+      const h = (d.hours || 0) + ((d.mins || 0) / 60);
+      const weekFactor = (d.daysPerWeek || 7) / 7;
+      return ((d.watt * (d.qty || 1) * h) / 1000) * weekFactor;
+    }
+
+    function renderDevices() {
+      const t = getActiveTariff();
+      const listEl = document.getElementById('deviceList');
+      const countEl = document.getElementById('deviceCount');
+      const clearBtn = document.getElementById('clearDevicesBtn');
+
+      countEl.textContent = devices.length;
+      clearBtn.classList.toggle('hidden', devices.length === 0);
+
+      let totalDailyKwh = 0;
+      let totalPeakWatt = 0;
+
+      devices.forEach(d => {
+        totalDailyKwh += calcDeviceAvgDailyKwh(d);
+        totalPeakWatt += d.watt * (d.qty || 1);
+      });
+
+      const totalDailyCost = totalDailyKwh * t.rate;
+      const totalMonthlyKwh = totalDailyKwh * 30;
+      const totalMonthlyCost = totalDailyCost * 30;
+
+      document.getElementById('dailyCostTotal').textContent = `Rp ${Math.round(totalDailyCost).toLocaleString('id-ID')}`;
+      document.getElementById('dailyKwhTotal').textContent = `${totalDailyKwh.toFixed(2)} kWh/hari`;
+      document.getElementById('monthlyCostTotal').textContent = `Rp ${Math.round(totalMonthlyCost).toLocaleString('id-ID')}`;
+      document.getElementById('monthlyKwhTotal').textContent = `${totalMonthlyKwh.toFixed(1)} kWh/bln`;
+
+      if (devices.length === 0) {
+        listEl.innerHTML = `<div class="border border-dashed border-white/10 rounded-xl p-6 text-center font-mono text-xs text-slate-500">BELUM ADA PERANGKAT</div>`;
+      } else {
+        listEl.innerHTML = devices.map(d => {
+          const dKwh = calcDeviceAvgDailyKwh(d);
+          const dMonthlyCost = dKwh * 30 * t.rate;
+          const sharePct = totalDailyKwh > 0 ? Math.round((dKwh / totalDailyKwh) * 100) : 0;
+          const durStr = `${d.hours || 0}j${d.mins ? ` ${d.mins}m` : ''}`;
+          const freqStr = (d.daysPerWeek && d.daysPerWeek < 7) ? ` • ${d.daysPerWeek}x/mgg` : '';
+
+          return `
+            <div class="hw-card rounded-xl p-3 flex items-center justify-between gap-2">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <p class="text-xs font-bold text-white truncate">${escapeHtml(d.name)}</p>
+                  ${d.qty > 1 ? `<span class="font-mono text-[10px] px-1.5 rounded bg-indigo-500/20 text-indigo-300">x${d.qty}</span>` : ''}
+                  <span class="font-mono text-[10px] text-lime-400">${sharePct}%</span>
+                </div>
+                <p class="font-mono text-[10px] text-slate-400 mt-0.5">${d.watt}W • ${durStr}${freqStr} • ${dKwh.toFixed(2)} kWh/hr</p>
+              </div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <div class="text-right mr-1">
+                  <p class="font-mono text-xs font-bold text-lime-300">Rp ${Math.round(dMonthlyCost).toLocaleString('id-ID')}</p>
+                  <p class="font-mono text-[9px] text-slate-500">/BULAN</p>
+                </div>
+                <button type="button" onclick="editDevice(${d.id})" class="w-7 h-7 rounded bg-white/[0.04] hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-300 text-xs flex items-center justify-center transition" title="Edit">✎</button>
+                <button type="button" onclick="removeDevice(${d.id})" class="w-7 h-7 rounded bg-white/[0.04] hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 text-xs flex items-center justify-center transition" title="Hapus">✕</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      updateRadar(totalDailyKwh, totalPeakWatt);
+    }
+
+    function updateRadar(cachedDailyKwh = null, cachedPeakWatt = null) {
+      const t = getActiveTariff();
+      let dailyKwh = cachedDailyKwh;
+      let peakWatt = cachedPeakWatt;
+
+      if (dailyKwh === null || peakWatt === null) {
+        dailyKwh = 0;
+        peakWatt = 0;
+        devices.forEach(d => {
+          dailyKwh += calcDeviceAvgDailyKwh(d);
+          peakWatt += d.watt * (d.qty || 1);
+        });
+      }
+
+      const remKwh = getCurrentLiveKwh();
+      document.getElementById('radarDailyUsageText').textContent = `${dailyKwh.toFixed(2)} kWh/hari`;
+
+      if (dailyKwh <= 0) {
+        document.getElementById('daysLeftBadge').textContent = '∞ HARI';
+        document.getElementById('emptyDateText').textContent = 'TAMBAH ALAT DULU';
+      } else {
+        const daysLeft = remKwh / dailyKwh;
+        document.getElementById('daysLeftBadge').textContent = `${daysLeft.toFixed(1)} HARI`;
+
+        const targetDate = new Date();
+        targetDate.setDate(targetDate.getDate() + Math.floor(daysLeft));
+        document.getElementById('emptyDateText').textContent = targetDate.toLocaleDateString('id-ID', {
+          day: 'numeric', month: 'short', year: 'numeric'
+        }).toUpperCase();
+      }
+
+      const maxWatt = t.maxVa;
+      const pct = Math.min(100, Math.round((peakWatt / maxWatt) * 100));
+      document.getElementById('totalPeakWattText').textContent = `${peakWatt.toLocaleString('id-ID')} W`;
+      document.getElementById('maxMcbWattText').textContent = `MAKS ${maxWatt.toLocaleString('id-ID')} VA (${pct}%)`;
+
+      const bar = document.getElementById('mcbProgressBar');
+      const pill = document.getElementById('mcbStatusPill');
+      bar.style.width = `${pct}%`;
+
+      if (peakWatt > maxWatt) {
+        bar.className = 'h-full bg-rose-500 rounded-sm transition-all duration-300';
+        pill.className = 'font-mono text-[10px] font-bold px-2 py-1 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30';
+        pill.textContent = 'OVERLOAD';
+      } else if (pct >= 80) {
+        bar.className = 'h-full bg-amber-400 rounded-sm transition-all duration-300';
+        pill.className = 'font-mono text-[10px] font-bold px-2 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
+        pill.textContent = 'WASPADA';
+      } else {
+        bar.className = 'h-full bg-lime-400 rounded-sm transition-all duration-300';
+        pill.className = 'font-mono text-[10px] font-bold px-2 py-1 rounded bg-lime-400/15 text-lime-300 border border-lime-400/30';
+        pill.textContent = 'AMAN';
+      }
+    }
+
+    selectTariff(activeTariffKey);
+    renderLiveSwitches();
+    updateLiveDisplay();
+    checkForUpdates(false);
+  </script>
+</body>
+  </html>
