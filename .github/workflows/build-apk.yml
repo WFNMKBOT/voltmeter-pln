@@ -2,28 +2,24 @@ name: Build & Release Android APK
 
 on:
   push:
-    branches:
-      - main
-      - master
-    paths-ignore:
-      - 'README.md'
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Kode
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
 
       - name: Setup Java JDK 17
         uses: actions/setup-java@v4
@@ -31,75 +27,54 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-
-      - name: Tentukan Versi Rilis Otomatis
-        id: version
+      - name: Inject App Version
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG="v1.0.${{ github.run_number }}"
-          fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "code=${{ github.run_number }}" >> $GITHUB_OUTPUT
-          sed -i "s/__APP_VERSION__/$TAG/g" www/index.html
+          sed -i "s/__APP_VERSION__/v1.0.${{ github.run_number }}/g" www/index.html
 
-      - name: Install Dependencies & Init Android
+      - name: Install Dependencies & Generate Android Project
         run: |
           npm install
+          npm install -D @capacitor/assets
           npx cap add android
-          npx cap sync android
-
-      - name: Generate Icon & Splash Screen (Jika Ada)
-        run: |
-          if [ -f "assets/icon.png" ]; then
+          
+          mkdir -p assets
+          IMG_FILE=$(find . -maxdepth 3 -not -path '*/.*' -not -path './android/*' -not -path './node_modules/*' \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) | head -n 1)
+          if [ -n "$IMG_FILE" ]; then
+            pip install pillow -q
+            python3 -c "from PIL import Image; img = Image.open('$IMG_FILE').convert('RGBA'); img.save('assets/icon.png'); img.save('assets/icon-only.png')"
             npx capacitor-assets generate --android --iconBackgroundColor '#06090e' --splashBackgroundColor '#06090e'
+            rm -rf android/app/src/main/res/mipmap-anydpi-v26
           fi
+          npx cap sync
 
-      - name: Set Version Code & Name di Gradle
+      - name: Decode Keystore Permanen & Naikkan VersionCode
         run: |
-          sed -i "s/versionCode 1/versionCode ${{ steps.version.outputs.code }}/g" android/app/build.gradle
-          sed -i "s/versionName \"1.0\"/versionName \"${{ steps.version.outputs.tag }}\"/g" android/app/build.gradle
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 -d > android/app/release.keystore
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/g" android/app/build.gradle
+          sed -i 's/versionName "1.0"/versionName "1.0.${{ github.run_number }}"/g' android/app/build.gradle
 
-      - name: Build & Sign Release APK
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      - name: Build Signed Release APK
         run: |
           cd android
           chmod +x gradlew
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > app/release-key.keystore
-            ./gradlew assembleRelease \
-              -Pandroid.injected.signing.store.file=$(pwd)/app/release-key.keystore \
-              -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD || 'android123' }}" \
-              -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS || 'my-key-alias' }}" \
-              -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD || 'android123' }}"
-            cp app/build/outputs/apk/release/app-release.apk ../VoltMeter-${{ steps.version.outputs.tag }}.apk
-          else
-            ./gradlew assembleDebug
-            cp app/build/outputs/apk/debug/app-debug.apk ../VoltMeter-${{ steps.version.outputs.tag }}-debug.apk
-          fi
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$PWD/app/release.keystore \
+            -Pandroid.injected.signing.store.password=wadirect123 \
+            -Pandroid.injected.signing.key.alias=wadirect \
+            -Pandroid.injected.signing.key.password=wadirect123
 
-      - name: Upload Artifact APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: VoltMeter-${{ steps.version.outputs.tag }}
-          path: VoltMeter-*.apk
+      - name: Rename APK
+        run: |
+          mv android/app/build/outputs/apk/release/app-release.apk VoltMeter.apk
 
-      - name: Publish GitHub Release
+      - name: Publish ke GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: VoltMeter Live ${{ steps.version.outputs.tag }}
+          tag_name: v1.0.${{ github.run_number }}
+          name: VoltMeter Live v1.0.${{ github.run_number }}
           body: |
-            Rilis otomatis **VoltMeter Live ${{ steps.version.outputs.tag }}**:
+            Rilis resmi aplikasi **VoltMeter Live** (Build #${{ github.run_number }}).
             - Live kWh Meter Real-time dengan sakelar ON/OFF per perangkat
             - Input manual & katalog 25+ alat elektronik rumah tangga
             - Kalkulator Token PLN & Radar Beban Puncak MCB
-          files: VoltMeter-*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: VoltMeter.apk
