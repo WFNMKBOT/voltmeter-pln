@@ -1,0 +1,17 @@
+{
+  "name": "voltmeter-live",
+  "version": "1.0.0",
+  "description": "VoltMeter Live - Kalkulator Token PLN & Live kWh Meter",
+  "main": "www/index.html",
+  "scripts": {
+    "build": "echo 'Static web ready'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.1.2"
+  }
+}
