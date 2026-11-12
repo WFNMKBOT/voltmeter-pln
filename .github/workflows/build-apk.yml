@@ -66,9 +66,6 @@ jobs:
       - name: Build & Sign Release APK
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           cd android
           chmod +x gradlew
@@ -76,9 +73,9 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 -d > app/release-key.keystore
             ./gradlew assembleRelease \
               -Pandroid.injected.signing.store.file=$(pwd)/app/release-key.keystore \
-              -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
-              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
-              -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+              -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD || 'android123' }}" \
+              -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS || 'my-key-alias' }}" \
+              -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD || 'android123' }}"
             cp app/build/outputs/apk/release/app-release.apk ../VoltMeter-${{ steps.version.outputs.tag }}.apk
           else
             ./gradlew assembleDebug
